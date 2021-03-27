@@ -1,0 +1,98 @@
+model TomMac
+uses "mmxprs"
+
+declarations
+	Products: set of string
+	Varieties: set of string
+	Contents: set of string
+	ProductReduction: array(Products) of real
+	OtherIngredientFactor: array(Products) of real
+	OtherIngredientCost: array(Products) of real
+	ProductionCost: array(Products) of real
+	TomatoProperties: array(Contents,Varieties) of real
+	ProductProperties: array(Contents,Products) of real
+
+  NPeriods = 4
+  Period = 1..NPeriods
+	PeriodNames: set of string
+	TomatoSupply: array(Varieties,PeriodNames) of real
+	TomatoCost: array(Varieties,PeriodNames) of real
+	Demand: array(Products) of real
+  SalePrice: array(Products) of real
+	Contract: array(Products) of real
+	ContractPrice: array(Products) of real
+	NewContract: array(Products) of real
+	NewContractPrice: array(Products) of real
+	ProductionLimit: array(Products) of real
+
+	StorageCost: real
+	WarehouseSize: real
+	NewWarehouseSize: real
+	NewWarehouseCost: real
+	NewProductionIncrease: real
+	NewProductionCost: real
+
+	TomatoInProduct: array(Products,Varieties,PeriodNames) of mpvar !the total amount of each tomato used for each product per time period
+	ProductSold: array(Products,PeriodNames) of mpvar
+	Stock: array(Products,PeriodNames) of mpvar
+end-declarations
+
+initializations from "TomMac.dat"
+Products Varieties Contents ProductReduction OtherIngredientFactor OtherIngredientCost ProductionCost TomatoProperties ProductProperties StorageCost WarehouseSize
+NewWarehouseSize NewWarehouseCost NewProductionIncrease NewProductionCost
+end-initializations
+initializations from "TomMacQuarter"
+  PeriodNames TomatoSupply TomatoCost Demand SalePrice Contract ContractPrice NewContract NewContractPrice ProductionLimit
+end-initializations
+
+
+forall(p in Products, q in PeriodNames, c in Contents) do
+	InitialMixCS(p,q,c) := ProductProperties(c,p)*(sum(v in Varieties) TomatoInProduct(p,v,q)) = sum(v in Varieties) TomatoProperties(c,v)*TomatoInProduct(p,v,q)
+end-do
+
+forall(p in Products,q in PeriodNames) do
+	ProductMade(p, q) := ((sum(v in Varieties) TomatoInProduct(p,v,q))*ProductReduction(p))*(1 + OtherIngredientFactor(p))
+end-do
+
+forall(v in Varieties, q in PeriodNames) do
+	QuarterlyTomatoUsed(v,q) := sum(p in Products) TomatoInProduct(p,v,q)
+	AvailabilityCS(v,q) := TomatoSupply(v,q) >= QuarterlyTomatoUsed(v,q)
+end-do
+
+forall(p in Products, t in Period) do
+  if t = 1 then
+    Stock(p,t) := Stock(p,NPeriods) + ProductMade(p,t) - ProductSold(p,t)
+  else
+    Stock(p,t) := Stock(p,t-1) + ProductMade(p,t) - ProductSold(p,t)
+  end-if
+  ProductionCS(p,t) := Stock(p,t) <= ProductionLimit(p)
+  ContractCS(p,t) := ProductSold(p,t) >= Contract(p)
+  DemandCS(p,t) := ProductSold(p,t) <= (Demand(p) + Contract(p))
+end-do
+
+forall(t in Period) do
+	WarehouseCS(t) := sum(p in Products) Stock(p,t) <= WarehouseSize
+end-do
+
+
+forall(q in PeriodNames) do
+	AdditionalIncome(q) := sum(p in Products) (SalePrice(p)*(ProductSold(p,q)-Contract(p)))
+	QuarterlyTomatoCost(q) := sum(v in Varieties) QuarterlyTomatoUsed(v,q)*TomatoCost(v,q)
+end-do
+
+ContractIncome := sum(p in Products) Contract(p)*ContractPrice(p)
+YearlyTomatoCost := sum(q in PeriodNames) QuarterlyTomatoCost(q)
+YearlyOtherIngredientCost := sum(q in PeriodNames, p in Products) OtherIngredientFactor(p)*((sum(v in Varieties) TomatoInProduct(p,v,q))*ProductReduction(p))*OtherIngredientCost(p)
+YearlyProductionCost := sum(q in PeriodNames, p in Products) ProductionCost(p)*ProductMade(p,q)
+YearlyStorageCost := sum(p in Products, q in PeriodNames) Stock(p,q)*StorageCost
+
+TotalIncome := 4*ContractIncome + sum(q in PeriodNames) AdditionalIncome(q)
+TotalCost := YearlyTomatoCost + YearlyOtherIngredientCost + YearlyProductionCost + YearlyStorageCost
+
+TotalProfit := TotalIncome - TotalCost
+
+maximize(TotalProfit)
+
+writeln("The total profit is ", getobjval)
+
+end-model
