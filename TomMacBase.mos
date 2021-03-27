@@ -50,7 +50,7 @@ forall(p in Products, q in PeriodNames, c in Contents) do
 	InitialMixCS(p,q,c) := ProductProperties(c,p)*(sum(v in Varieties) TomatoInProduct(p,v,q)) = sum(v in Varieties) TomatoProperties(c,v)*TomatoInProduct(p,v,q)
 end-do
 
-forall(p in Products,q in PeriodNames) do
+forall(p in Products, q in PeriodNames) do
 	ProductMade(p, q) := ((sum(v in Varieties) TomatoInProduct(p,v,q))*ProductReduction(p))*(1 + OtherIngredientFactor(p))
 end-do
 
