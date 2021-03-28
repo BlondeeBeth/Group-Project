@@ -1,6 +1,7 @@
 model TomMac
 uses "mmxprs"
 
+
 declarations
 	Products: set of string
 	Varieties: set of string
@@ -12,6 +13,9 @@ declarations
 	TomatoProperties: array(Contents,Varieties) of real
 	ProductProperties: array(Contents,Products) of real
 
+	ogPrice: real
+	ogDemand: real
+
   NPeriods = 4
   Period = 1..NPeriods
 	PeriodNames: set of string
@@ -19,6 +23,7 @@ declarations
 	TomatoCost: array(Varieties,Period) of real
 	Demand: array(Products) of real
   SalePrice: array(Products) of real
+	ogPrice: array(Products) of real
 	Contract: array(Products) of real
 	ContractPrice: array(Products) of real
 	NewContract: array(Products) of real
@@ -114,5 +119,34 @@ forall(t in Period) do
 	end-do
 	write("\nWith the warehouse usage at ", getsol(sum(p in Products) Stock(p,t)), "kg of products.")
 end-do
+
+ogPrice := SalePrice
+ogDemand := Demand
+demandIncrease := 0.0
+repeat
+	forall (p in Products)  do
+		Demand(p) := Demand(p) +  demandIncrease * ogDemand(p)
+	end-do
+
+	priceIncrease := 0.0
+
+	repeat
+		forall (p in Products) do
+			SalePrice(p) := SalePrice(p) + ogPrice(p) * priceIncrease
+		end-do
+	! rent a new warehouse, or not?
+
+		NewWarehouseProfit := TotalIncome - TotalCost - 3000
+
+		forall(t in Period) do
+			WarehouseCS(t) := sum(p in Products) Stock(p,t) <= WarehouseSize + NewWarehouseSize
+		end-do
+
+		priceIncrease += 0.1
+	until(priceIncrease > 0.2)
+
+	demandIncrease += 0.1
+until (demandIncrease > 0.2)
+
 
 end-model
