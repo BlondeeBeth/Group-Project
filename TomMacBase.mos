@@ -13,8 +13,6 @@ declarations
 	TomatoProperties: array(Contents,Varieties) of real
 	ProductProperties: array(Contents,Products) of real
 
-	ogPrice: real
-	ogDemand: real
 
   NPeriods = 4
   Period = 1..NPeriods
@@ -23,7 +21,6 @@ declarations
 	TomatoCost: array(Varieties,Period) of real
 	Demand: array(Products) of real
   SalePrice: array(Products) of real
-	ogPrice: array(Products) of real
 	Contract: array(Products) of real
 	ContractPrice: array(Products) of real
 	NewContract: array(Products) of real
@@ -120,8 +117,10 @@ forall(t in Period) do
 	write("\nWith the warehouse usage at ", getsol(sum(p in Products) Stock(p,t)), "kg of products.")
 end-do
 
-ogPrice := SalePrice
-ogDemand := Demand
+forall(p in Products) do 
+ogPrice(p) := SalePrice(p)
+ogDemand(p) := Demand(p)
+end-do
 demandIncrease := 0.0
 repeat
 	forall (p in Products)  do
