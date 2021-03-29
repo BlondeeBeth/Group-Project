@@ -24,7 +24,7 @@ declarations
 	NewContract: array(Products) of real
 	NewContractPrice: array(Products) of real
 	ProductionLimit: array(Products) of real
-	
+
 	PriceChange: real
 	DemandChange: real
 	ProductionCostChange: real
@@ -41,11 +41,11 @@ declarations
 	Stock: array(Products,Period) of mpvar
 end-declarations
 
-initializations from "TomMac.dat" 
+initializations from "TomMac.dat"
 Products Varieties Contents ProductReduction OtherIngredientFactor OtherIngredientCost ProductionCost TomatoProperties ProductProperties StorageCost WarehouseSize
 NewWarehouseSize NewWarehouseCost NewProductionIncrease NewProductionCost
 end-initializations
-initializations from "TomMacQuarters.dat" 
+initializations from "TomMacQuarters.dat"
   PeriodNames TomatoSupply TomatoCost Demand SalePrice Contract ContractPrice NewContract NewContractPrice ProductionLimit
 end-initializations
 initializations from "TomMacPlan.dat" !If considering base case, use TomMacBase.dat, if consdering future scenario, use TomMacPlan.dat
@@ -126,7 +126,7 @@ forall(t in Period) do
 	forall(v in Varieties) do
 		write(v, ": ", getsol(QuarterlyTomatoUsed(v,t)), ". ")
 	end-do
-	write("\nWith the warehouse usage at ", getsol(sum(p in Products) Stock(p,t)), "kg of products.")
+	writeln("\nWith the warehouse usage at ", getsol(sum(p in Products) Stock(p,t)), "kg of products.")
 end-do
 
 writeln("\nFair Prices for the Warehouse, £/kg:")
@@ -134,10 +134,17 @@ forall(t in Period) do
 	Dual := getdual(WarehouseCS(t))
 writeln("In ",PeriodNames(t),":", strfmt(Dual, 4))
 end-do
-writeln("\nFair Prices for Production Capacity, £/kg:")
-forall(p in Products, t in Period) do
-	Dual := getdual(ProductionCS(p,t))
-writeln("In ",PeriodNames(t)," for ",Products(p),":", strfmt(Dual, 4))
+write("\nFair Prices for Production Capacity, £/kg:")
+forall(t in Period) do
+	write("\nIn ", PeriodNames(t), ":\n")
+	forall(p in Products) do
+		Dual := getdual(ProductionCS(p,t))
+		if p = "Canned" then
+			write("and ", Products(p),":", strfmt(Dual, 4), ". ")
+		else
+			write(Products(p),":", strfmt(Dual, 4), ", ")
+		end-if
+	end-do
 end-do
 
 end-model
