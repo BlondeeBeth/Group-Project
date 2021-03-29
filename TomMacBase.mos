@@ -48,7 +48,7 @@ end-initializations
 initializations from "TomMacQuarters.dat"
   PeriodNames TomatoSupply TomatoCost Demand SalePrice Contract ContractPrice NewContract NewContractPrice ProductionLimit
 end-initializations
-initializations from "TomMacPlan.dat" !If considering base case, use TomMacBase.dat, if consdering future scenario, use TomMacPlan.dat
+initializations from "TomMacBase.dat" !If considering base case, use TomMacBase.dat, if consdering future scenario, use TomMacPlan.dat
   PriceChange DemandChange ProductionCostChange
 end-initializations
 
@@ -85,8 +85,8 @@ forall(p in Products, t in Period) do
     Stock(p,t) = Stock(p,t-1) + ProductMade(p,t) - ProductSold(p,t)
   end-if
   ProductionCS(p,t) := ProductMade(p,t) <= ProductionLimit(p)
-  ContractCS(p,t) := ProductSold(p,t) >= TotalContract(p)
-  DemandCS(p,t) := ProductSold(p,t) <= (Demand(p) + TotalContract(p))
+  DemandCS(p,t) := ProductSold(p,t) >= Demand(p)
+  ContractCS(p,t) := ProductSold(p,t) <= (Demand(p) + TotalContract(p))
 end-do
 
 forall(t in Period) do
