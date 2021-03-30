@@ -48,9 +48,13 @@ end-initializations
 initializations from "TomMacQuarters.dat"
   PeriodNames TomatoSupply TomatoCost Demand SalePrice Contract ContractPrice NewContract NewContractPrice ProductionLimit
 end-initializations
-initializations from "TomMacBase.dat" !If considering base case, use TomMacBase.dat, if consdering future scenario, use TomMacPlan.dat
+initializations from "TomMacBase.dat" !If considering base case, use TomMacBase.dat, if considering future scenario, use TomMacPlan.dat
   PriceChange DemandChange ProductionCostChange
 end-initializations
+
+UseNewContract := false
+NewWarehouse := false
+ExtraProduction := false
 
 forall(p in Products) do
 SalePrice(p) := PriceChange*SalePrice(p)
@@ -59,11 +63,34 @@ NewContractPrice(p) := PriceChange*NewContractPrice(p)
 Demand(p) := DemandChange*Demand(p)
 ProductionCost(p) := ProductionCostChange*ProductionCost(p)
 
+if UseNewContract then
+TotalContract(p) := Contract(p) + NewContract(p)
+else
 TotalContract(p) := Contract(p)
-!TotalContract(p) := Contract(p) + NewContract(p) !Use this to include new contract
+end-if
+
+if ExtraProduction then
+TotalProductionLimit(p) := (1+(NewProductionIncrease/100))*ProductionLimit(p)
+ExtraProductionCosts := NewProductionCost
+else
+TotalProductionLimit(p) := ProductionLimit(p)
+ExtraProductionCosts := 0
+end-if
 end-do
+
+if UseNewContract then
+ContractIncome := sum(p in Products) (Contract(p)*ContractPrice(p) + NewContract(p)*NewContractPrice(p))
+else
 ContractIncome := sum(p in Products) Contract(p)*ContractPrice(p)
-!ContractIncome := sum(p in Products) (Contract(p)*ContractPrice(p) + NewContract(p)*NewContractPrice(p)) !Use this to include new contract
+end-if
+
+if NewWarehouse then
+TotalWarehouseSize := WarehouseSize + NewWarehouseSize
+ExtraWarehouseCosts := NewWarehouseCost
+else
+TotalWarehouseSize := WarehouseSize
+ExtraWarehouseCosts := 0
+end-if
 
 forall(p in Products, t in Period, c in Contents) do
 	InitialMixCS(p,t,c) := ProductProperties(c,p)*(sum(v in Varieties) TomatoInProduct(p,v,t)) = sum(v in Varieties) TomatoProperties(c,v)*TomatoInProduct(p,v,t)
@@ -84,13 +111,13 @@ forall(p in Products, t in Period) do
   else
     Stock(p,t) = Stock(p,t-1) + ProductMade(p,t) - ProductSold(p,t)
   end-if
-  ProductionCS(p,t) := ProductMade(p,t) <= ProductionLimit(p)
-  DemandCS(p,t) := ProductSold(p,t) >= Demand(p)
-  ContractCS(p,t) := ProductSold(p,t) <= (Demand(p) + TotalContract(p))
+  ProductionCS(p,t) := ProductMade(p,t) <= TotalProductionLimit(p)
+  ContractCS(p,t) := ProductSold(p,t) >= TotalContract(p)
+  DemandCS(p,t) := ProductSold(p,t) <= (Demand(p) + TotalContract(p))
 end-do
 
 forall(t in Period) do
-	WarehouseCS(t) := sum(p in Products) Stock(p,t) <= WarehouseSize
+	WarehouseCS(t) := sum(p in Products) Stock(p,t) <= TotalWarehouseSize
 end-do
 
 forall(t in Period) do
@@ -100,8 +127,9 @@ end-do
 
 YearlyTomatoCost := sum(t in Period) QuarterlyTomatoCost(t)
 YearlyOtherIngredientCost := sum(t in Period, p in Products) OtherIngredientFactor(p)*((sum(v in Varieties) TomatoInProduct(p,v,t))*ProductReduction(p))*OtherIngredientCost(p)
-YearlyProductionCost := sum(t in Period, p in Products) ProductionCost(p)*ProductMade(p,t)
-YearlyStorageCost := sum(p in Products, t in Period) Stock(p,t)*StorageCost
+YearlyProductionCost := sum(t in Period, p in Products) ProductionCost(p)*ProductMade(p,t) + ExtraProductionCosts
+YearlyStorageCost := sum(p in Products, t in Period) Stock(p,t)*StorageCost + ExtraWarehouseCosts
+
 
 TotalIncome := NPeriods*ContractIncome + sum(t in Period) AdditionalIncome(t)
 TotalCost := YearlyTomatoCost + YearlyOtherIngredientCost + YearlyProductionCost + YearlyStorageCost
@@ -112,9 +140,9 @@ maximize(TotalProfit)
 
 
 
-writeln("The total profit is £", getobjval, " if you:")
+write("\nThe total profit is £", getobjval, " if you:")
 forall(t in Period) do
-	write("\nIn ", PeriodNames(t), ": \nProduce (in kg):\n")
+	write("\n\nIn ", PeriodNames(t), ": \nProduce (in kg):\n")
 	forall(p in Products) do
 		if p = "Canned" then
 			write("and ", p, ": ", getsol(ProductMade(p, t)), ". ")
@@ -122,29 +150,19 @@ forall(t in Period) do
 			write(p, ": ", getsol(ProductMade(p, t)), ", ")
 		end-if
 	end-do
+	write("\nSell (in kg):\n")
+	forall(p in Products) do
+		if p = "Canned" then
+			write("and ", p, ": ", getsol(ProductSold(p, t)), ". ")
+		else
+			write(p, ": ", getsol(ProductSold(p, t)), ", ")
+		end-if
+	end-do
 	writeln("\nUsing (in kg):")
 	forall(v in Varieties) do
 		write(v, ": ", getsol(QuarterlyTomatoUsed(v,t)), ". ")
 	end-do
-	writeln("\nWith the warehouse usage at ", getsol(sum(p in Products) Stock(p,t)), "kg of products.")
-end-do
-
-writeln("\nFair Prices for the Warehouse, £/kg:")
-forall(t in Period) do
-	Dual := getdual(WarehouseCS(t))
-writeln("In ",PeriodNames(t),":", strfmt(Dual, 4))
-end-do
-write("\nFair Prices for Production Capacity, £/kg:")
-forall(t in Period) do
-	write("\nIn ", PeriodNames(t), ":\n")
-	forall(p in Products) do
-		Dual := getdual(ProductionCS(p,t))
-		if p = "Canned" then
-			write("and ", Products(p),":", strfmt(Dual, 4), ". ")
-		else
-			write(Products(p),":", strfmt(Dual, 4), ", ")
-		end-if
-	end-do
+	write("\nWith the warehouse usage at ", getsol(sum(p in Products) Stock(p,t)), "kg of products.")
 end-do
 
 end-model
