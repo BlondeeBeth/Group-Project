@@ -67,7 +67,8 @@ UseNewContract := false
 NewWarehouse := true
 ExtraProduction := false
 
-!
+!If using the TomMacPlan.dat the loop changes the values to account for the change in price, demand and production cost. If using the
+!base file no changes will be made.
 forall(p in Products) do
 SalePrice(p) := PriceChange*SalePrice(p)
 ContractPrice(p) := PriceChange*ContractPrice(p)
@@ -75,12 +76,14 @@ NewContractPrice(p) := PriceChange*NewContractPrice(p)
 Demand(p) := DemandChange*Demand(p)
 ProductionCost(p) := ProductionCostChange*ProductionCost(p)
 
+!If UseNewContract is toggled on above, add the new contract to the old one, if not use just the base contract.
 if UseNewContract then
 TotalContract(p) := Contract(p) + NewContract(p)
 else
 TotalContract(p) := Contract(p)
 end-if
 
+!If ExtraProduction is toggled on above, increase Production Limit by 20% and include a Production Cost.
 if ExtraProduction then
 TotalProductionLimit(p) := (1+(NewProductionIncrease/100))*ProductionLimit(p)
 ExtraProductionCosts := NewProductionCost
