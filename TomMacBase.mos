@@ -105,7 +105,9 @@ ogProductionCost := ProductionCost
 !Setting a value to loop through the different cases.
 index := 1
 
-!The first loop accounts for the changes in future product prices, 
+!The first loop accounts for the changes in future product prices, they will either increase by 0%, 10% or 20%.
+!The new product prices are found by multiplying the original Demand by the percentage to increase the price by then adding it to
+!the demand for each of the products.
 forall(demandIncrease in 0..2) do
 	forall(p in Products) Demand(p) += ogDemand(p) * (demandIncrease * 10)/100
 
