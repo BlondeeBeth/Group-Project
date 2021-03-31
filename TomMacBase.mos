@@ -1,6 +1,7 @@
 model TomMac
 uses "mmxprs"
 
+!Declarations, assigning the parameters the correct data type, for example "ProductionCost" is an array connected to the Products ready for the values that detail how much it costs to produce each Product
 declarations
 	Products: set of string
 	Varieties: set of string
@@ -49,9 +50,10 @@ declarations
 	Stock: array(Products,Period) of mpvar
 end-declarations
 
+!Collect the data from the data files and assign them to the various parameters outlined in the declaration.
 initializations from "TomMac.dat"
-Products Varieties Contents ProductReduction OtherIngredientFactor OtherIngredientCost ProductionCost TomatoProperties ProductProperties StorageCost WarehouseSize
-NewWarehouseSize NewWarehouseCost NewProductionIncrease NewProductionCost
+Products Varieties Contents ProductReduction OtherIngredientFactor OtherIngredientCost ProductionCost TomatoProperties ProductProperties 
+StorageCost WarehouseSize NewWarehouseSize NewWarehouseCost NewProductionIncrease NewProductionCost
 end-initializations
 initializations from "TomMacQuarters.dat"
   PeriodNames TomatoSupply TomatoCost Demand SalePrice Contract ContractPrice NewContract NewContractPrice ProductionLimit
@@ -60,10 +62,12 @@ initializations from "TomMacBase.dat" !If considering base case, use TomMacBase.
   PriceChange DemandChange ProductionCostChange
 end-initializations
 
+!Toggles the different strategic decisions on and off, true for choosing this decision, false for not choosing it.
 UseNewContract := false
 NewWarehouse := true
 ExtraProduction := false
 
+!
 forall(p in Products) do
 SalePrice(p) := PriceChange*SalePrice(p)
 ContractPrice(p) := PriceChange*ContractPrice(p)
