@@ -52,7 +52,7 @@ end-declarations
 
 !Collect the data from the data files and assign them to the various parameters outlined in the declaration.
 initializations from "TomMac.dat"
-Products Varieties Contents ProductReduction OtherIngredientFactor OtherIngredientCost ProductionCost TomatoProperties ProductProperties 
+Products Varieties Contents ProductReduction OtherIngredientFactor OtherIngredientCost ProductionCost TomatoProperties ProductProperties
 StorageCost WarehouseSize NewWarehouseSize NewWarehouseCost NewProductionIncrease NewProductionCost
 end-initializations
 initializations from "TomMacQuarters.dat"
@@ -63,44 +63,49 @@ initializations from "TomMacBase.dat" !If considering base case, use TomMacBase.
 end-initializations
 
 !Toggles the different strategic decisions on and off, true for choosing this decision, false for not choosing it.
+!UseNewContract denotes whether the company signs a new contract
+!NewWarehouse denotes whether the company rents a new warehouse
+!ExtraProduction denotes whether the company increases their production capacity by 20%.
 UseNewContract := false
 NewWarehouse := true
 ExtraProduction := false
 
-!If using the TomMacPlan.dat the loop changes the values to account for the change in price, demand and production cost. If using the
+!If using the TomMacPlan.dat we change the values to account for the change in price, demand and production cost. If using the
 !base file no changes will be made.
 forall(p in Products) do
-SalePrice(p) := PriceChange*SalePrice(p)
-ContractPrice(p) := PriceChange*ContractPrice(p)
-NewContractPrice(p) := PriceChange*NewContractPrice(p)
-Demand(p) := DemandChange*Demand(p)
-ProductionCost(p) := ProductionCostChange*ProductionCost(p)
+	SalePrice(p) := PriceChange*SalePrice(p)
+	ContractPrice(p) := PriceChange*ContractPrice(p)
+	NewContractPrice(p) := PriceChange*NewContractPrice(p)
+	Demand(p) := DemandChange*Demand(p)
+	ProductionCost(p) := ProductionCostChange*ProductionCost(p)
 
-!If UseNewContract is toggled on above, add the new contract to the old one, if not use just the base contract.
-if UseNewContract then
-TotalContract(p) := Contract(p) + NewContract(p)
-else
-TotalContract(p) := Contract(p)
-end-if
+	!If UseNewContract flag is true then add the new contract to the old one, otherwise(UseNewContract flag is false) otherwise use the
+	!base contract.
+	if UseNewContract then
+	TotalContract(p) := Contract(p) + NewContract(p)
+	else
+	TotalContract(p) := Contract(p)
+	end-if
 
-!If ExtraProduction is toggled on above, increase Production Limit by 20% and include a Production Cost.
-if ExtraProduction then
-TotalProductionLimit(p) := (1+(NewProductionIncrease/100))*ProductionLimit(p)
-ExtraProductionCosts := NewProductionCost
-else
-TotalProductionLimit(p) := ProductionLimit(p)
-ExtraProductionCosts := 0
-end-if
+	!If ExtraProduction flag is true then increase Production Limit by 20% and include a Production Cost.
+	!otherwise (ExtraProduction flag is false) then Production Limit stays the same and no production cost is incured.
+	if ExtraProduction then
+	TotalProductionLimit(p) := (1+(NewProductionIncrease/100))*ProductionLimit(p)
+	ExtraProductionCosts := NewProductionCost
+	else
+	TotalProductionLimit(p) := ProductionLimit(p)
+	ExtraProductionCosts := 0
+	end-if
 end-do
 
-
-
-
+!Setting original values for Demand, SalePrice and ProductionCost so we are able to return to these values as needed
 ogDemand := Demand
 ogSalePrice := SalePrice
 ogProductionCost := ProductionCost
+!Setting a value to loop through the different cases.
 index := 1
 
+!The first loop accounts for the changes in future product prices, 
 forall(demandIncrease in 0..2) do
 	forall(p in Products) Demand(p) += ogDemand(p) * (demandIncrease * 10)/100
 
