@@ -109,20 +109,20 @@ index := 1
 !The new demand is found by multiplying the original demand by the percentage to increase the demand then adding it to the
 !demand for each of the products.
 forall(demandIncrease in 0..2) do
-	forall(p in Products) Demand(p) += ogDemand(p) * (demandIncrease * 10)/100
+	forall(p in Products) Demand(p) := ogDemand(p) + (ogDemand(p) * (demandIncrease * 10)/100)
 
 	!The second loop is to account for the changes to the product prices, they will either increase by 0%, 10% or 20%.
 	!The new sale price is found by multiplying the original SalePrice by the percentage to increase the price then adding it to
 	!the SalePrice for each of the products.
 	forall(priceIncrease in 0..2) do
-		forall(p in Products) SalePrice(p) +=ogSalePrice(p) * (priceIncrease * 10)/100
+		forall(p in Products) SalePrice(p) := ogSalePrice(p) + (ogSalePrice(p) * (priceIncrease * 10)/100)
 
 		!The third loop is to account for the changes to the production costs, they will either increase or decrease by 5% or stay
 		!the same.
 		!The new production cost is found by multiplying the original ProductionCost by the percentage to increase or decrease
 		!then adding it to the ProductionCost for each of the products.
 		forall(costIncrease in 0..2) do
-			forall(p in Products) ProductionCost(p) += ogProductionCost(p) *( -5 + costIncrease * 5)/100
+			forall(p in Products) ProductionCost(p) := ogProductionCost(p) + ogProductionCost(p) *( -5 + costIncrease * 5)/100
 
 			!The ContractIncome is the income gained through the contract, this is calculated by multiplying the amount of product
 			!sold by the price it is sold at and then summing for all types of product.
@@ -167,7 +167,7 @@ forall(demandIncrease in 0..2) do
 				QuarterlyTomatoUsed(v,t) := sum(p in Products) TomatoInProduct(p,v,t)
 				AvailabilityCS(v,t) := TomatoSupply(v,t) >= QuarterlyTomatoUsed(v,t)
 			end-do
-			
+
 			!The amount of stock in warehouse per product at the end of the quarter is calculated by taking the stock from the previous
 			!quarter and adding the amount of product made in that quarter and subtracting the amount of product sold.
 			forall(p in Products, t in Period) do
@@ -184,29 +184,35 @@ forall(demandIncrease in 0..2) do
 			  !The constraint is for the total demand. The amount of product sold cannot exceed the demand plus contract for each product.
 			  DemandCS(p,t) := ProductSold(p,t) <= (Demand(p) + TotalContract(p))
 			end-do
-			
+
 			!The constraint is for the warehouse. The stock summated over all the products has to be less than the total warehouse size.
 			forall(t in Period) do
 				WarehouseCS(t) := sum(p in Products) Stock(p,t) <= TotalWarehouseSize
-			end-do
-			
-			!
-			forall(t in Period) do
+				!AdditionalIncome is the additional income from extra stock sold after fulfilling the contract.
 				AdditionalIncome(t) := sum(p in Products) (SalePrice(p)*(ProductSold(p,t)-TotalContract(p)))
+				!QuarterlyTomatoCost is the cost of all the tomatoes purchased per quarter.
 				QuarterlyTomatoCost(t) := sum(v in Varieties) QuarterlyTomatoUsed(v,t)*TomatoCost(v,t)
 			end-do
 
+			!Summing all the quarters together to get the yearly expenditure, i.e. YearlyTomatoCost is the sum of QuarterlyTomatoCost over all
+			!quarters.
 			YearlyTomatoCost := sum(t in Period) QuarterlyTomatoCost(t)
 			YearlyOtherIngredientCost := sum(t in Period, p in Products) OtherIngredientFactor(p)*((sum(v in Varieties) TomatoInProduct(p,v,t))*ProductReduction(p))*OtherIngredientCost(p)
 			YearlyProductionCost := sum(t in Period, p in Products) ProductionCost(p)*ProductMade(p,t) + ExtraProductionCosts
 			YearlyStorageCost := sum(p in Products, t in Period) Stock(p,t)*StorageCost + ExtraWarehouseCosts
 
-
+			!TotalIncome is the income for the company for the year, summing the income from the contract and any additional income.
 			TotalIncome := NPeriods*ContractIncome + sum(t in Period) AdditionalIncome(t)
+			!TotalCost is the total expenditure for the year, summing all the various yearly expenditures.
 			TotalCost := YearlyTomatoCost + YearlyOtherIngredientCost + YearlyProductionCost + YearlyStorageCost
 
+			!TotalProfit is the profit of the company, the income minus the expenditure, for the year.
 			TotalProfit := TotalIncome - TotalCost
 
+			!Find the optimal maximum profit for the company
+			maximize(TotalProfit)
+
+			!Returns the values caluculated above in a legible manner for each case.
 			if index = 2 then
 				writeln("\n\n:::::::::::::::: Base Case  ::::::::::\n" )
 			else
@@ -215,8 +221,6 @@ forall(demandIncrease in 0..2) do
 			writeln("Production Cost Increase = ", costIncrease * 5 - 5 , "%\n")
 			writeln("Sale Price Increase = ", priceIncrease * 10 , "%\n")
 			writeln("Demand Increase =  ", demandIncrease * 10, "%\n")
-
-			maximize(TotalProfit)
 
 			write("\nThe total profit is £", getobjval, " if you:")
 			forall(t in Period) do
@@ -247,9 +251,5 @@ forall(demandIncrease in 0..2) do
 		end-do
 	end-do
 end-do
-
-! new warehouse?
-
-
 
 end-model
