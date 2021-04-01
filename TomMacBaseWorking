@@ -1,0 +1,168 @@
+model TomMac
+uses "mmxprs"
+
+declarations
+	Products: set of string
+	Varieties: set of string
+	Contents: set of string
+	ProductReduction: array(Products) of real
+	OtherIngredientFactor: array(Products) of real
+	OtherIngredientCost: array(Products) of real
+	ProductionCost: array(Products) of real
+	TomatoProperties: array(Contents,Varieties) of real
+	ProductProperties: array(Contents,Products) of real
+
+    NPeriods = 4
+    Period = 1..NPeriods
+    PeriodNames: set of string
+	TomatoSupply: array(Varieties,Period) of real
+	TomatoCost: array(Varieties,Period) of real
+	Demand: array(Products) of real
+    SalePrice: array(Products) of real
+	Contract: array(Products) of real
+	ContractPrice: array(Products) of real
+	NewContract: array(Products) of real
+	NewContractPrice: array(Products) of real
+	ProductionLimit: array(Products) of real
+
+	PriceChange: real
+	DemandChange: real
+	ProductionCostChange: real
+
+	StorageCost: real
+	WarehouseSize: real
+	NewWarehouseSize: real
+	NewWarehouseCost: real
+	NewProductionIncrease: real
+	NewProductionCost: real
+
+	TomatoInProduct: array(Products,Varieties,Period) of mpvar !the total amount of each tomato used for each product per time period
+	ProductSold: array(Products,Period) of mpvar
+	Stock: array(Products,Period) of mpvar
+end-declarations
+
+initializations from "TomMac.dat"
+Products Varieties Contents ProductReduction OtherIngredientFactor OtherIngredientCost ProductionCost TomatoProperties ProductProperties StorageCost WarehouseSize
+NewWarehouseSize NewWarehouseCost NewProductionIncrease NewProductionCost
+end-initializations
+initializations from "TomMacQuarters.dat"
+  PeriodNames TomatoSupply TomatoCost Demand SalePrice Contract ContractPrice NewContract NewContractPrice ProductionLimit
+end-initializations
+initializations from "TomMacBase.dat" !If considering base case, use TomMacBase.dat, if considering future scenario, use TomMacPlan.dat
+  PriceChange DemandChange ProductionCostChange
+end-initializations
+
+UseNewContract := false
+NewWarehouse := false
+ExtraProduction := false
+
+forall(p in Products) do
+SalePrice(p) := PriceChange*SalePrice(p)
+ContractPrice(p) := PriceChange*ContractPrice(p)
+NewContractPrice(p) := PriceChange*NewContractPrice(p)
+Demand(p) := DemandChange*Demand(p)
+ProductionCost(p) := ProductionCostChange*ProductionCost(p)
+
+if UseNewContract then
+TotalContract(p) := Contract(p) + NewContract(p)
+else
+TotalContract(p) := Contract(p)
+end-if
+
+if ExtraProduction then
+TotalProductionLimit(p) := (1+(NewProductionIncrease/100))*ProductionLimit(p)
+ExtraProductionCosts := NewProductionCost
+else
+TotalProductionLimit(p) := ProductionLimit(p)
+ExtraProductionCosts := 0
+end-if
+end-do
+
+if UseNewContract then
+ContractIncome := sum(p in Products) (Contract(p)*ContractPrice(p) + NewContract(p)*NewContractPrice(p))
+else
+ContractIncome := sum(p in Products) Contract(p)*ContractPrice(p)
+end-if
+
+if NewWarehouse then
+TotalWarehouseSize := WarehouseSize + NewWarehouseSize
+ExtraWarehouseCosts := NewWarehouseCost
+else
+TotalWarehouseSize := WarehouseSize
+ExtraWarehouseCosts := 0
+end-if
+
+forall(p in Products, t in Period, c in Contents) do
+	InitialMixCS(p,t,c) := ProductProperties(c,p)*(sum(v in Varieties) TomatoInProduct(p,v,t)) = sum(v in Varieties) TomatoProperties(c,v)*TomatoInProduct(p,v,t)
+end-do
+
+forall(p in Products, t in Period) do
+	ProductMade(p, t) := ((sum(v in Varieties) TomatoInProduct(p,v,t))*ProductReduction(p))*(1 + OtherIngredientFactor(p))
+end-do
+
+forall(v in Varieties, t in Period) do
+	QuarterlyTomatoUsed(v,t) := sum(p in Products) TomatoInProduct(p,v,t)
+	AvailabilityCS(v,t) := TomatoSupply(v,t) >= QuarterlyTomatoUsed(v,t)
+end-do
+
+forall(p in Products, t in Period) do
+  if t = 1 then
+   Stock(p,t) = Stock(p,NPeriods) + ProductMade(p,t) - ProductSold(p,t)
+  else
+    Stock(p,t) = Stock(p,t-1) + ProductMade(p,t) - ProductSold(p,t)
+  end-if
+  ProductionCS(p,t) := ProductMade(p,t) <= TotalProductionLimit(p)
+  ContractCS(p,t) := ProductSold(p,t) >= TotalContract(p)
+  DemandCS(p,t) := ProductSold(p,t) <= (Demand(p) + TotalContract(p))
+end-do
+
+forall(t in Period) do
+	WarehouseCS(t) := sum(p in Products) Stock(p,t) <= TotalWarehouseSize
+end-do
+
+forall(t in Period) do
+	AdditionalIncome(t) := sum(p in Products) (SalePrice(p)*(ProductSold(p,t)-TotalContract(p)))
+	QuarterlyTomatoCost(t) := sum(v in Varieties) QuarterlyTomatoUsed(v,t)*TomatoCost(v,t)
+end-do
+
+YearlyTomatoCost := sum(t in Period) QuarterlyTomatoCost(t)
+YearlyOtherIngredientCost := sum(t in Period, p in Products) OtherIngredientFactor(p)*((sum(v in Varieties) TomatoInProduct(p,v,t))*ProductReduction(p))*OtherIngredientCost(p)
+YearlyProductionCost := sum(t in Period, p in Products) ProductionCost(p)*ProductMade(p,t) + ExtraProductionCosts
+YearlyStorageCost := sum(p in Products, t in Period) Stock(p,t)*StorageCost + ExtraWarehouseCosts
+
+
+TotalIncome := NPeriods*ContractIncome + sum(t in Period) AdditionalIncome(t)
+TotalCost := YearlyTomatoCost + YearlyOtherIngredientCost + YearlyProductionCost + YearlyStorageCost
+
+TotalProfit := TotalIncome - TotalCost
+
+maximize(TotalProfit)
+
+
+
+write("\nThe total profit is £", getobjval, " if you:")
+forall(t in Period) do
+	write("\n\nIn ", PeriodNames(t), ": \nProduce (in kg):\n")
+	forall(p in Products) do
+		if p = "Canned" then
+			write("and ", p, ": ", getsol(ProductMade(p, t)), ". ")
+		else
+			write(p, ": ", getsol(ProductMade(p, t)), ", ")
+		end-if
+	end-do
+	write("\nSell (in kg):\n")
+	forall(p in Products) do
+		if p = "Canned" then
+			write("and ", p, ": ", getsol(ProductSold(p, t)), ". ")
+		else
+			write(p, ": ", getsol(ProductSold(p, t)), ", ")
+		end-if
+	end-do
+	writeln("\nUsing (in kg):")
+	forall(v in Varieties) do
+		write(v, ": ", getsol(QuarterlyTomatoUsed(v,t)), ". ")
+	end-do
+	write("\nWith the warehouse usage at ", getsol(sum(p in Products) Stock(p,t)), "kg of products.")
+end-do
+
+end-model

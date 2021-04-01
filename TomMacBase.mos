@@ -67,7 +67,7 @@ end-initializations
 !NewWarehouse denotes whether the company rents a new warehouse
 !ExtraProduction denotes whether the company increases their production capacity by 20%.
 UseNewContract := false
-NewWarehouse := true
+NewWarehouse := false
 ExtraProduction := false
 
 !If using the TomMacPlan.dat we change the values to account for the change in price, demand and production cost. If using the
@@ -132,7 +132,7 @@ forall(demandIncrease in 0..2) do
 			else
 			ContractIncome := sum(p in Products) Contract(p)*ContractPrice(p)
 			end-if
-			
+
 			!If NewWarehouse flag is true then we add the new warehouse size to the old one to gain a total warehouse size.
 			!This also incurs a cost which needs to be accounted for. Otherwise (NewWarehouse flag is false) there is no cost and
 			!the total warehouse size is just the original warehouse size.
@@ -143,23 +143,23 @@ forall(demandIncrease in 0..2) do
 			TotalWarehouseSize := WarehouseSize
 			ExtraWarehouseCosts := 0
 			end-if
-			
+
 			!This constraint is for the Initial Mix of the products. The properties of the product, i.e how solid or liquid it is,
 			!needs to be equal to the recipe.
-			!This is guaranteed by multiplying the production properties needed in the recipe by the sum over all the varieties of how 
+			!This is guaranteed by multiplying the production properties needed in the recipe by the sum over all the varieties of how
 			!much tomato is in each product then equating this to how much tomato is in the product multiplied by the properties of
 			!each variety. The variable here is TomatoInProduct.
 			forall(p in Products, t in Period, c in Contents) do
 				InitialMixCS(p,t,c) := ProductProperties(c,p)*(sum(v in Varieties) TomatoInProduct(p,v,t)) = sum(v in Varieties) TomatoProperties(c,v)*TomatoInProduct(p,v,t)
 			end-do
-			
-			!The amount of product made is determined by the amount of tomato in the product multiplied by how much the product needs 
+
+			!The amount of product made is determined by the amount of tomato in the product multiplied by how much the product needs
 			!to be reduced by according to the recipe multipled by 1 plus any other ingredients that need to be added, summated over
 			!all the varieties. This is done for each product and each time period. The variable here is TomatoInProduct.
 			forall(p in Products, t in Period) do
 				ProductMade(p, t) := ((sum(v in Varieties) TomatoInProduct(p,v,t))*ProductReduction(p))*(1 + OtherIngredientFactor(p))
 			end-do
-			
+
 			!The amount of tomato used in each period is the amount of tomato in products summated over the products.
 			!The constraint is for the availability of tomatoes. The amount of tomato used cannot exceed the supply of tomatoes.
 			!This is guaranteed for all varieties and time periods.
@@ -168,22 +168,29 @@ forall(demandIncrease in 0..2) do
 				AvailabilityCS(v,t) := TomatoSupply(v,t) >= QuarterlyTomatoUsed(v,t)
 			end-do
 			
-			!
+			!The amount of stock in warehouse per product at the end of the quarter is calculated by taking the stock from the previous
+			!quarter and adding the amount of product made in that quarter and subtracting the amount of product sold.
 			forall(p in Products, t in Period) do
 			  if t = 1 then
 			   Stock(p,t) = Stock(p,NPeriods) + ProductMade(p,t) - ProductSold(p,t)
 			  else
 			    Stock(p,t) = Stock(p,t-1) + ProductMade(p,t) - ProductSold(p,t)
 			  end-if
+			  !The constraint is for the production limit. The amount of product made has to be lower than the production limit for
+			  !each product.
 			  ProductionCS(p,t) := ProductMade(p,t) <= TotalProductionLimit(p)
+			  !The constraint is for the contract sales. The amount of product sold has to be above the product sold for each product.
 			  ContractCS(p,t) := ProductSold(p,t) >= TotalContract(p)
+			  !The constraint is for the total demand. The amount of product sold cannot exceed the demand plus contract for each product.
 			  DemandCS(p,t) := ProductSold(p,t) <= (Demand(p) + TotalContract(p))
 			end-do
-
+			
+			!The constraint is for the warehouse. The stock summated over all the products has to be less than the total warehouse size.
 			forall(t in Period) do
 				WarehouseCS(t) := sum(p in Products) Stock(p,t) <= TotalWarehouseSize
 			end-do
-
+			
+			!
 			forall(t in Period) do
 				AdditionalIncome(t) := sum(p in Products) (SalePrice(p)*(ProductSold(p,t)-TotalContract(p)))
 				QuarterlyTomatoCost(t) := sum(v in Varieties) QuarterlyTomatoUsed(v,t)*TomatoCost(v,t)
