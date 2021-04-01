@@ -106,31 +106,36 @@ ogProductionCost := ProductionCost
 index := 1
 
 !The first loop accounts for the changes to the future demand, it will either increase by 0%, 10% or 20%.
-!The new demand is found by multiplying the original demand by the percentage to increase the demand by then adding it to the
+!The new demand is found by multiplying the original demand by the percentage to increase the demand then adding it to the
 !demand for each of the products.
 forall(demandIncrease in 0..2) do
 	forall(p in Products) Demand(p) += ogDemand(p) * (demandIncrease * 10)/100
 
 	!The second loop is to account for the changes to the product prices, they will either increase by 0%, 10% or 20%.
-	!The new sale price is found by multiplying the original SalePrice by the percentage to increase the price by then adding it to
+	!The new sale price is found by multiplying the original SalePrice by the percentage to increase the price then adding it to
 	!the SalePrice for each of the products.
 	forall(priceIncrease in 0..2) do
 		forall(p in Products) SalePrice(p) +=ogSalePrice(p) * (priceIncrease * 10)/100
 
-		!The second loop is to account for the changes to the production costs, they will either increase or decrease by 5% or stay
+		!The third loop is to account for the changes to the production costs, they will either increase or decrease by 5% or stay
 		!the same.
-		!The new production cost is found by multiplying the original ProductionCost by the percentage to increase or decrease by
+		!The new production cost is found by multiplying the original ProductionCost by the percentage to increase or decrease
 		!then adding it to the ProductionCost for each of the products.
 		forall(costIncrease in 0..2) do
 			forall(p in Products) ProductionCost(p) += ogProductionCost(p) *( -5 + costIncrease * 5)/100
-			
-			!
+
+			!The ContractIncome is the income gained through the contract, this is calculated by multiplying the amount of product
+			!sold by the price it is sold at and then summing for all types of product.
+			!If UseNewContract flag is true, we add the new contract to the original contract before summating.
 			if UseNewContract then
 			ContractIncome := sum(p in Products) (Contract(p)*ContractPrice(p) + NewContract(p)*NewContractPrice(p))
 			else
 			ContractIncome := sum(p in Products) Contract(p)*ContractPrice(p)
 			end-if
-
+			
+			!If NewWarehouse flag is true then we add the new warehouse size to the old one to gain a total warehouse size.
+			!This also incurs a cost which needs to be accounted for. Otherwise (NewWarehouse flag is false) there is no cost and
+			!the total warehouse size is just the original warehouse size.
 			if NewWarehouse then
 			TotalWarehouseSize := WarehouseSize + NewWarehouseSize
 			ExtraWarehouseCosts := NewWarehouseCost
@@ -138,20 +143,32 @@ forall(demandIncrease in 0..2) do
 			TotalWarehouseSize := WarehouseSize
 			ExtraWarehouseCosts := 0
 			end-if
-
+			
+			!This constraint is for the Initial Mix of the products. The properties of the product, i.e how solid or liquid it is,
+			!needs to be equal to the recipe.
+			!This is guaranteed by multiplying the production properties needed in the recipe by the sum over all the varieties of how 
+			!much tomato is in each product then equating this to how much tomato is in the product multiplied by the properties of
+			!each variety. The variable here is TomatoInProduct.
 			forall(p in Products, t in Period, c in Contents) do
 				InitialMixCS(p,t,c) := ProductProperties(c,p)*(sum(v in Varieties) TomatoInProduct(p,v,t)) = sum(v in Varieties) TomatoProperties(c,v)*TomatoInProduct(p,v,t)
 			end-do
-
+			
+			!The amount of product made is determined by the amount of tomato in the product multiplied by how much the product needs 
+			!to be reduced by according to the recipe multipled by 1 plus any other ingredients that need to be added, summated over
+			!all the varieties. This is done for each product and each time period. The variable here is TomatoInProduct.
 			forall(p in Products, t in Period) do
 				ProductMade(p, t) := ((sum(v in Varieties) TomatoInProduct(p,v,t))*ProductReduction(p))*(1 + OtherIngredientFactor(p))
 			end-do
-
+			
+			!The amount of tomato used in each period is the amount of tomato in products summated over the products.
+			!The constraint is for the availability of tomatoes. The amount of tomato used cannot exceed the supply of tomatoes.
+			!This is guaranteed for all varieties and time periods.
 			forall(v in Varieties, t in Period) do
 				QuarterlyTomatoUsed(v,t) := sum(p in Products) TomatoInProduct(p,v,t)
 				AvailabilityCS(v,t) := TomatoSupply(v,t) >= QuarterlyTomatoUsed(v,t)
 			end-do
-
+			
+			!
 			forall(p in Products, t in Period) do
 			  if t = 1 then
 			   Stock(p,t) = Stock(p,NPeriods) + ProductMade(p,t) - ProductSold(p,t)
@@ -182,7 +199,7 @@ forall(demandIncrease in 0..2) do
 			TotalCost := YearlyTomatoCost + YearlyOtherIngredientCost + YearlyProductionCost + YearlyStorageCost
 
 			TotalProfit := TotalIncome - TotalCost
-			
+
 			if index = 2 then
 				writeln("\n\n:::::::::::::::: Base Case  ::::::::::\n" )
 			else
